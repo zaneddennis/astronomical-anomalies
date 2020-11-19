@@ -11,23 +11,7 @@ DATA_FILEPATH = "notebooks/mockdata.npz"
 NUM_PASSBANDS = 6
 
 
-def plot_event(event_id, times, fluxes, filters):
-    time_row = times[event_id]
-    flux_row = fluxes[event_id]
-    filter_row = filters[event_id]
-
-    for passband, color in zip(range(NUM_PASSBANDS), ("blue", "cyan", "green", "yellow", "orange", "red")):
-        good_ixes = np.where(filter_row == str(passband))
-        plt.plot(time_row[good_ixes], flux_row[good_ixes], color=color, marker="o")
-
-    plt.xlabel("Time (days)")
-    plt.ylabel("Flux")
-    plt.ylim(-8.0, 0.1)
-    plt.title('Light Curve {}'.format(event_id))
-    plt.show()
-
-
-def plot_fitted_event(params, event_id, times, fluxes, filters):
+def plot_event(params, event_id, times, fluxes, filters, plot_regression=True):
     num_times = len(times[event_id])
     time_row = times[event_id]
     flux_row = fluxes[event_id]
@@ -43,16 +27,20 @@ def plot_fitted_event(params, event_id, times, fluxes, filters):
         slope, intercept = params[passband * PPP:(passband + 1) * PPP]
 
         # generate points
-        for i, t in enumerate(times[event_id]):
-            f = slope * t + intercept
-            points[i] = [t, f]
+        if plot_regression:
+            for i, t in enumerate(times[event_id]):
+                f = slope * t + intercept
+                points[i] = [t, f]
 
-        plt.plot(points[:, 0], points[:, 1], color=color, linestyle="dashed")
+            plt.plot(points[:, 0], points[:, 1], color=color, linestyle="dashed")
 
     plt.xlabel("Time (days)")
     plt.ylabel("Flux")
     plt.ylim(-8.0, 0.1)
-    plt.title('Intermediate Regression Curve {}'.format(event_id))
+    if plot_regression:
+        plt.title("Intermediate Regression Curve {}".format(event_id))
+    else:
+        plt.title("Light Curve {}".format(event_id))
     plt.show()
 
 
@@ -77,7 +65,7 @@ def get_features(ix, times, fluxes, filters):
     return features
 
 
-def main(model, to_analyze=10, plot_all=False, plot_outliers=False):
+def main(model, to_analyze=-1, plot_all=False, plot_outliers=False):
     data = np.load(DATA_FILEPATH, allow_pickle=True)
     times = data["times"]
     fluxes = data["fluxes"]
@@ -88,15 +76,20 @@ def main(model, to_analyze=10, plot_all=False, plot_outliers=False):
         e_times = [t - e_times[0] for t in e_times]
         times[i] = np.array(e_times)
 
-    # TODO: add zero-flux points for each passband for all other times
+    # TODO: add zero-flux points for each passband for times outside of expressed range
+    # (since light actually goes 0 --> values --> 0)
+    # this will change the results greatly and require polynomial fitting; the current script is just a proof of concept
+
+    if to_analyze == -1:
+        to_analyze = len(times)
+    print("Analyzing {} light curves".format(to_analyze))
 
     rows = []
     for i in range(to_analyze):
         features = get_features(i, times, fluxes, filters)
         rows.append(features)
         if plot_all:
-            plot_event(i, times, fluxes, filters)
-            plot_fitted_event(features, i, times, fluxes, filters)
+            plot_event(features, i, times, fluxes, filters, plot_regression=False)
 
     X = np.array(rows)
     #print(X)
@@ -108,15 +101,38 @@ def main(model, to_analyze=10, plot_all=False, plot_outliers=False):
     model.fit(X_scaled)
     labels = dbscan.labels_
 
-    print("OUTLIERS:")
-    for i, l in enumerate(labels):
-        if l == -1:
-            print(i)
-            if plot_outliers:
-                plot_fitted_event(X[i, :], i, times, fluxes, filters)
+    outliers = np.where(labels == -1)[0]  # np.where() returns a length-1 tuple where only the first value is the actual output??? For some reason???
+    if plot_outliers:
+        for o in outliers:
+            plot_event(X[o, :], o, times, fluxes, filters)
+
+    clusters, cl_counts = np.unique(labels, return_counts=True)
+    print("CLUSTERS:")
+    print(clusters)
+    print(cl_counts)
+
+    # plot clusters in 2D space
+    f1 = 2  # teal slope
+    f2 = 10  # red slope
+    feature1 = X[:, f1]
+    feature2 = X[:, f2]
+
+
+
+    fig, ax = plt.subplots()
+    for label in clusters:
+        ixes = np.where(labels == label)[0]
+        points1 = feature1[ixes]
+        points2 = feature2[ixes]
+        ax.scatter(points1, points2, label=label)
+
+    plt.xlabel("Red Passband IR Slope")
+    plt.ylabel("Teal Passband IR Slope")
+    ax.legend()
+    plt.show()
 
 
 if __name__ == '__main__':
-    dbscan = DBSCAN(eps=3.0)
+    dbscan = DBSCAN(eps=1.5, min_samples=5)
 
-    main(dbscan, to_analyze=100, plot_outliers=True)
+    main(dbscan, plot_all=False, plot_outliers=False)
