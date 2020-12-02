@@ -1,3 +1,6 @@
+
+# NOTE: THIS SCRIPT IS IN THE PROCESS OF BECOMING DEPRECATED
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -95,6 +98,7 @@ def main(model, filepath, to_analyze=-1, plot_all=False, plot_outliers=False,
     if plot_classes:
         classes = data["ids"]
 
+    # move this to the cleaning script
     for i, e_times in enumerate(times):
         e_times = [t - e_times[0] for t in e_times]
         times[i] = np.array(e_times)
@@ -115,7 +119,6 @@ def main(model, filepath, to_analyze=-1, plot_all=False, plot_outliers=False,
             plot_event(features, i, times, fluxes, filters, plot_regression=False)
 
     X = np.array(rows)
-    #print(X)
 
     ss = StandardScaler()
     X_scaled = ss.fit_transform(X)
