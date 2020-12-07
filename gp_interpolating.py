@@ -9,6 +9,7 @@ import george
 
 
 NUM_PASSBANDS = 6
+OUTPUT_POINTS = 64
 
 
 def plot_event(e_times, e_fluxes, e_filters, event_id, pred, x_times):
@@ -29,7 +30,7 @@ def plot_event(e_times, e_fluxes, e_filters, event_id, pred, x_times):
 def make_dense_lc(e_times, e_fluxes, e_filters):
     stacked_data = np.vstack([e_times, e_filters]).T
     #x_pred = np.zeros((len(e_times) * NUM_PASSBANDS, 2))
-    x_pred = np.zeros((20*6, 2))
+    x_pred = np.zeros((OUTPUT_POINTS*6, 2))
     kernel = np.var(e_fluxes) * george.kernels.ExpSquaredKernel([100, 1], ndim=2)
     gp = george.GP(kernel)
     gp.compute(stacked_data, 0)
@@ -45,7 +46,7 @@ def make_dense_lc(e_times, e_fluxes, e_filters):
     result = optimize.minimize(neg_ln_like, gp.get_parameter_vector(), jac=grad_neg_ln_like)
     gp.set_parameter_vector(result.x)
 
-    new_times = np.linspace(0, 100, 20)
+    new_times = np.linspace(0, 100, OUTPUT_POINTS)
     for jj, time in enumerate(new_times):
         x_pred[jj * NUM_PASSBANDS:jj * NUM_PASSBANDS + NUM_PASSBANDS, 0] = [time] * NUM_PASSBANDS
         x_pred[jj * NUM_PASSBANDS:jj * NUM_PASSBANDS + NUM_PASSBANDS, 1] = np.arange(NUM_PASSBANDS)
@@ -67,29 +68,20 @@ if __name__ == '__main__':
     classes = data["ids"][:to_analyze]
 
     output_rows = []
+    output_labels = []
     for i in range(to_analyze):
         e_times = times[i]
         e_fluxes = fluxes[i]
         e_flux_errors = flux_errors[i]
         e_filters = filters[i]
-
-        """print(e_times)
-        print(e_fluxes)
-        print(e_filters)"""
+        label = classes[i]
 
         try:
             pred, pred_vars, x_times = make_dense_lc(e_times, e_fluxes, e_filters)
             #y_fluxes = np.reshape(pred, (20, 6))
-            y_fluxes = pred.reshape(20, 6)
+            y_fluxes = pred.reshape(OUTPUT_POINTS, 6)
 
-            """print("X times:")
-            print(x_times)
-            print()
-
-            print("Pred:")
-            print(pred)
-            print()"""
-
+            output_labels.append(label)
             output_rows.append(pred)
 
             if random() < 10.0/to_analyze:
@@ -100,7 +92,9 @@ if __name__ == '__main__':
 
     # compile into output array
     output = np.array(output_rows)
-    print(output)
+    output_labels = np.array(output_labels)
     print(output.shape)
+    print(output_labels.shape)
 
     np.savetxt("interpolated_10k.csv", output, delimiter=",")
+    np.savetxt("interpolated_10k_labels.csv", output_labels, delimiter=",")
