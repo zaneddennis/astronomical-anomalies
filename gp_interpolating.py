@@ -18,7 +18,7 @@ def plot_event(e_times, e_fluxes, e_filters, event_id, pred, x_times):
         plt.plot(e_times[good_ixes], e_fluxes[good_ixes], color=color, marker="o")
 
     for passband, color in zip(range(NUM_PASSBANDS), ("blue", "cyan", "green", "yellow", "orange", "red")):
-        plt.plot(x_times, pred[:,passband], color=color, marker="x", ls="--")
+        plt.plot(x_times, pred[:,passband], color=color, ls="--")
 
     plt.ylim(-0.1, np.amax(pred)+0.5)
     plt.xlabel("Time (days)")
@@ -46,7 +46,7 @@ def make_dense_lc(e_times, e_fluxes, e_filters):
     result = optimize.minimize(neg_ln_like, gp.get_parameter_vector(), jac=grad_neg_ln_like)
     gp.set_parameter_vector(result.x)
 
-    new_times = np.linspace(0, 100, OUTPUT_POINTS)
+    new_times = np.linspace(0, 127, OUTPUT_POINTS)
     for jj, time in enumerate(new_times):
         x_pred[jj * NUM_PASSBANDS:jj * NUM_PASSBANDS + NUM_PASSBANDS, 0] = [time] * NUM_PASSBANDS
         x_pred[jj * NUM_PASSBANDS:jj * NUM_PASSBANDS + NUM_PASSBANDS, 1] = np.arange(NUM_PASSBANDS)
@@ -84,7 +84,7 @@ if __name__ == '__main__':
             output_labels.append(label)
             output_rows.append(pred)
 
-            if random() < 10.0/to_analyze:
+            if random() < 20.0/to_analyze:
                 plot_event(e_times, e_fluxes, e_filters, i, y_fluxes, x_times)
 
         except:
@@ -96,5 +96,5 @@ if __name__ == '__main__':
     print(output.shape)
     print(output_labels.shape)
 
-    np.savetxt("interpolated_10k.csv", output, delimiter=",")
-    np.savetxt("interpolated_10k_labels.csv", output_labels, delimiter=",")
+    np.savetxt("interpolated.csv", output, delimiter=",")
+    np.savetxt("interpolated_labels.csv", output_labels, delimiter=",")
