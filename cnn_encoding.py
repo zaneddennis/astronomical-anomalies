@@ -30,7 +30,7 @@ CLASS_NAMES = {
 
 INPUT_POINTS = 64
 BATCH_SIZE = 1024
-NUM_EPOCHS = 64
+NUM_EPOCHS = 16
 
 
 def get_device():
@@ -86,13 +86,35 @@ class CNN_Autoencoder(nn.Module):
 
         return x
 
+    def partial_forward(self, x):
+        VERBOSE = False
+
+        if VERBOSE:
+            print("Input shape: ", x.shape)
+
+        # Encoding
+        x = F.relu(self.conv1(x))
+        if VERBOSE:
+            print("Shape after Conv 1: ", x.shape)
+        x = self.pool(x)
+        if VERBOSE:
+            print("Shape after Pool 1: ", x.shape)
+        x = F.relu(self.conv2(x))
+        if VERBOSE:
+            print("Shape after Conv 2: ", x.shape)
+        x = self.pool(x)
+        if VERBOSE:
+            print("Shape after Pool 2:", x.shape)
+
+        return x
+
 
 # returns: loss
 def train_epoch(model, loader, optimizer, criterion):
     total_loss = 0.0
 
     for i, batch in enumerate(loader):
-        #print("Training on batch {} with size {}".format(i, len(batch)))
+        #print("\tTraining on batch {} with size {}".format(i, len(batch)))
         batch = batch.to(get_device())
         batch = batch.reshape((len(batch), 1, INPUT_POINTS, 6))  # from 2D to 4D
         batch = batch.permute(0, 1, 3, 2)
@@ -119,7 +141,7 @@ if __name__ == '__main__':
     data_tensor = tensor(data).float()
     labels_tensor = tensor(labels).float()
 
-    train_data, eval_data, train_labels, eval_labels = train_test_split(data_tensor, labels_tensor, test_size=0.2)
+    train_data, eval_data, train_labels, eval_labels = train_test_split(data_tensor, labels_tensor, test_size=0.2, random_state=2)
 
     print(train_data.shape, train_labels.shape)
     print(eval_data.shape, eval_labels.shape)
@@ -162,7 +184,7 @@ if __name__ == '__main__':
         epoch_loss = train_epoch(model, train_loader, optimizer, criterion)
         print("Epoch {}: {}".format(epoch, epoch_loss))
 
-    # reconstructions
+    # sample reconstructions
     for e in range(10):
         image = eval_data[e, :].to(get_device())
         label = CLASS_NAMES[int(eval_labels[e])]
@@ -174,3 +196,24 @@ if __name__ == '__main__':
         plt.imshow(output[0, 0, :, :].detach().cpu())
         plt.title("Reconstructed Curve {} - ({})".format(e, label))
         plt.show()
+
+    # full evaluations
+
+    # get and output encodings for train set
+    encoding_rows = []
+    for batch in train_loader:
+        batch = batch.to(get_device())
+        batch = batch.reshape((len(batch), 1, INPUT_POINTS, 6))  # from 2D to 4D
+        batch = batch.permute(0, 1, 3, 2)
+
+        encodings = model.partial_forward(batch)
+        encoding_rows.append(encodings.detach().cpu())
+
+    # output encodings to file
+    all_encodings = np.concatenate(encoding_rows)
+    all_encodings = all_encodings.reshape(len(all_encodings), 15)
+    print(all_encodings.shape)
+    np.savetxt("encodings.csv", all_encodings, delimiter=",")
+
+    # output labels
+    np.savetxt("labels.csv", train_labels.reshape(-1, 1), delimiter=",")

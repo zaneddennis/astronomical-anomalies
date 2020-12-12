@@ -4,52 +4,77 @@ import numpy as np
 import pandas as pd
 
 from sklearn import metrics
-from sklearn.cluster import DBSCAN
+from sklearn.cluster import *
+from sklearn.preprocessing import StandardScaler
 
 
-def main(features_filepath, features_raw_filepath):
+def main_v2(features_filepath, labels_filepath, cluster_cutoff, label_cutoff):
     features = np.loadtxt(features_filepath, delimiter=",")
-    features_raw = None
-    if features_raw_filepath:
-        features_raw = np.loadtxt(features_raw_filepath, delimiter=",")
+    labels = np.loadtxt(labels_filepath, delimiter=",")
     print(features.shape)
+    print()
 
-    labels = features[:, -1]
-    print(labels)
-    features = features[:, :-1]
-    print(features.shape)
+    # scale features
+    ss = StandardScaler()
+    features_scaled = ss.fit_transform(features)
 
-    dbscan = DBSCAN(eps=0.7, min_samples=24).fit(features)
-    clusters = dbscan.labels_
+    dbscan = DBSCAN(eps=.6, min_samples=8)
+    agglo = AgglomerativeClustering(n_clusters=16)
+    kmeans = KMeans(n_clusters=16)
+    meanshift = MeanShift(n_jobs=-1)
 
-    outliers = np.where(clusters == -1)[0]  # np.where() returns a length-1 tuple where only the first value is the actual output??? For some reason???
+    for model, name in ((agglo, "Agglomerative"), (kmeans, "K-Means")): #(meanshift, "Mean Shift")):
+        print(name)
 
-    cluster_names, cl_counts = np.unique(clusters, return_counts=True)
-    print("CLUSTERS:")
-    print(cluster_names)
-    print(cl_counts)
+        model.fit(features_scaled)
 
-    label_ids, label_counts = np.unique(labels, return_counts=True)
+        clusters = model.labels_
+        cluster_names, cl_counts = np.unique(clusters, return_counts=True)
+        label_names, l_counts = np.unique(labels, return_counts=True)
 
-    print("LABELS:")
-    print(label_ids)
-    print(label_counts)
+        label_names = list(label_names)  # so I can use .index() in the frequency calculations
 
-    f1 = 3  # teal intercept
-    f2 = 11  # red intercept
-    feature1 = features_raw[:, f1]
-    feature2 = features_raw[:, f2]
+        print("CLUSTERS:")
+        print(cluster_names)
+        print(cl_counts)
 
-    # plot clusters
+        print("LABELS:")
+        print(label_names)
+        print(l_counts)
 
-    # plot labels
+        # make df of events
+        #   (ix, cluster, label)
+        df = pd.DataFrame(list(zip(clusters, labels)), columns=["Cluster", "Label"])
+        df["Cluster_Freq"] = 0.0
+        df["Label_Freq"] = 0.0
+        df["Is_Outlier"] = 0
+        df["Outlier_Gold"] = 0
 
-    matrix = metrics.cluster.contingency_matrix(labels, clusters)
-    df = pd.DataFrame(matrix, index=label_ids, columns=cluster_names)
-    print(df)
-    print("Normalized mutual info score:")
-    print(metrics.normalized_mutual_info_score(labels, clusters))
+        offset = 0
+        if -1 in clusters:
+            offset = 1
+
+        # calculate cluster frequencies and label frequencies
+        # get all events deemed to be outliers (in a class representing <X% of total)
+        for i, r in df.iterrows():
+            df.at[i, "Cluster_Freq"] = cl_counts[int(r["Cluster"])+offset] / len(df)
+            df.at[i, "Label_Freq"] = l_counts[label_names.index(int(r["Label"]))] / len(df)
+
+            if df.at[i, "Cluster_Freq"] < cluster_cutoff:
+                df.at[i, "Is_Outlier"] = 1
+            if df.at[i, "Label_Freq"] < label_cutoff:
+                df.at[i, "Outlier_Gold"] = 1
+
+        outliers_df = df.loc[df.Is_Outlier == 1]
+        precision = metrics.precision_score(outliers_df.Outlier_Gold, outliers_df.Is_Outlier)
+        print("Precision: ", precision)
+
+        # determine tp/fp/fn/tn?
+
+        # calculate metrics
+
+        print()
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main_v2(sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4]))
