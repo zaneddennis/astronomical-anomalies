@@ -189,12 +189,16 @@ if __name__ == '__main__':
         image = eval_data[e, :].to(get_device())
         label = CLASS_NAMES[int(eval_labels[e])]
 
+        fig, axs = plt.subplots(2)
+        fig.suptitle("Curve {} - Original vs Reconstructed".format(e))
+
         image = image.reshape(1, 1, INPUT_POINTS, 6)  # from 2D to 4D
         image = image.permute(0, 1, 3, 2)
-        output = model(image)
 
-        plt.imshow(output[0, 0, :, :].detach().cpu())
-        plt.title("Reconstructed Curve {} - ({})".format(e, label))
+        axs[0].imshow(image[0, 0, :, :].detach().cpu())
+        output = model(image)
+        axs[1].imshow(output[0, 0, :, :].detach().cpu())
+
         plt.show()
 
     # full evaluations

@@ -18,15 +18,18 @@ def main_v2(features_filepath, labels_filepath, cluster_cutoff, label_cutoff):
     ss = StandardScaler()
     features_scaled = ss.fit_transform(features)
 
-    dbscan = DBSCAN(eps=.6, min_samples=8)
-    agglo = AgglomerativeClustering(n_clusters=16)
-    kmeans = KMeans(n_clusters=16)
-    meanshift = MeanShift(n_jobs=-1)
+    #dbscan = DBSCAN(eps=.6, min_samples=8)
+    #agglo = AgglomerativeClustering(n_clusters=32)
+    #kmeans = KMeans(n_clusters=32)
+    #meanshift = MeanShift(n_jobs=-1)
 
-    for model, name in ((agglo, "Agglomerative"), (kmeans, "K-Means")): #(meanshift, "Mean Shift")):
-        print(name)
-
+    model_rows = []
+    #for model, name in ((agglo, "Agglomerative"), (kmeans, "K-Means"), (meanshift, "Mean Shift")):
+    for k in (i*2 for i in range(8, 25)):
+        print("K =", k)
+        model = AgglomerativeClustering(n_clusters=k)
         model.fit(features_scaled)
+        model_row = []
 
         clusters = model.labels_
         cluster_names, cl_counts = np.unique(clusters, return_counts=True)
@@ -34,13 +37,13 @@ def main_v2(features_filepath, labels_filepath, cluster_cutoff, label_cutoff):
 
         label_names = list(label_names)  # so I can use .index() in the frequency calculations
 
-        print("CLUSTERS:")
+        """print("CLUSTERS:")
         print(cluster_names)
         print(cl_counts)
 
         print("LABELS:")
         print(label_names)
-        print(l_counts)
+        print(l_counts)"""
 
         # make df of events
         #   (ix, cluster, label)
@@ -66,13 +69,9 @@ def main_v2(features_filepath, labels_filepath, cluster_cutoff, label_cutoff):
                 df.at[i, "Outlier_Gold"] = 1
 
         outliers_df = df.loc[df.Is_Outlier == 1]
+
         precision = metrics.precision_score(outliers_df.Outlier_Gold, outliers_df.Is_Outlier)
         print("Precision: ", precision)
-
-        # determine tp/fp/fn/tn?
-
-        # calculate metrics
-
         print()
 
 
